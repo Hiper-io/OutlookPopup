@@ -6,7 +6,7 @@
   xmlns:mailappor="http://schemas.microsoft.com/office/mailappversionoverrides/1.0"
   xsi:type="MailApp">
 
-  <Id>9235b138-eecb-4c3d-af0e-3d3b89e0e239</Id>
+  <Id>e5fabeee-0550-4ade-81e5-d7be58093515</Id>
   <Version>1.1.0.0</Version>
   <ProviderName>Hiper Group</ProviderName>
   <DefaultLocale>en-GB</DefaultLocale>
@@ -46,7 +46,7 @@
     <VersionOverrides xmlns="http://schemas.microsoft.com/office/mailappversionoverrides/1.1" xsi:type="VersionOverridesV1_1">
 
       <Requirements>
-        <bt:Sets DefaultMinVersion="1.12">
+        <bt:Sets DefaultMinVersion="1.15">
           <bt:Set Name="Mailbox"/>
         </bt:Sets>
       </Requirements>
@@ -69,7 +69,7 @@
                 <LaunchEvent Type="OnMessageSend" FunctionName="onMessageSendHandler" SendMode="Block"/>
                 <LaunchEvent Type="OnAppointmentSend" FunctionName="onAppointmentSendHandler" SendMode="Block"/>
               </LaunchEvents>
-              <SourceLocation resid="Commands.Url"/>
+              <SourceLocation resid="WebViewRuntime.Url"/>
             </ExtensionPoint>
 
             <!-- Ribbon button on the meeting compose window that opens the side panel. -->
