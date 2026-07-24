@@ -1,83 +1,74 @@
 /*
  * Job Number Enforcer for Outlook
  * ---------------------------------
- * Blocks a meeting/appointment from being sent unless a valid job number
- * is present. Runs on the OnMessageSend and OnAppointmentSend "Smart Alert"
- * events. Paired with SendMode="Block" in the manifest, this is a HARD block:
- * the item cannot leave Drafts until a job number is supplied.
+ * Blocks a meeting/appointment from being sent unless BOTH are present:
+ *   1. a valid job number (in the subject or notes), and
+ *   2. a meeting purpose (set via the "Meeting details" side panel).
+ * Runs on the OnMessageSend and OnAppointmentSend "Smart Alert" events.
+ * With SendMode="Block" in the manifest this is a HARD block: the item
+ * cannot leave Drafts until both are supplied.
  *
  * =====================================================================
- *  CONFIG — change these to match your job-number format, then re-host.
+ *  CONFIG — change these to match your rules, then re-upload this file.
  * =====================================================================
  */
 
-// Pattern a valid job number must match.
-// Default: the letter "J" followed by 4 to 6 digits (e.g. J1234, J123456),
-// case-insensitive, as a whole word. Edit this one line to change the rule.
-//   Examples:
-//     /\bJ\d{4,6}\b/i          -> J1234
-//     /\bJOB[- ]?\d{4,6}\b/i   -> JOB-1234 or JOB 1234
-//     /\b\d{6}\b/              -> any 6-digit number
+// What a valid job number looks like. Default: "J" + 4 to 6 digits (e.g. J1234).
 var JOB_NUMBER_REGEX = /\bJ\d{4,6}\b/i;
 
 // Also accept the job number in the meeting body/notes (not just the subject)?
 var ALSO_CHECK_BODY = true;
 
-// Message shown to the user when the job number is missing.
-var ERROR_MESSAGE =
-  "This meeting needs a job number in the subject before it can be sent " +
-  "(for example: J1234). Add it to the subject line and send again.";
+// Require a meeting purpose too? Set to false to enforce only the job number.
+var REQUIRE_PURPOSE = true;
+
+// The marker the side panel writes into the body to record the purpose.
+var PURPOSE_REGEX = /Meeting purpose:\s*\S+/i;
+
+// Messages shown when something's missing.
+var MSG_JOB =
+  "This meeting needs a job number (e.g. J1234). Open the 'Meeting details' " +
+  "button on the ribbon to add it, then send again.";
+var MSG_PURPOSE =
+  "Please set what this meeting is for. Open the 'Meeting details' button on " +
+  "the ribbon, pick a purpose, then send again.";
+var MSG_BOTH =
+  "This meeting needs a job number and a purpose. Open the 'Meeting details' " +
+  "button on the ribbon, fill both in, then send again.";
 
 /* =====================================================================
  *  Logic below — no need to edit.
  * ===================================================================== */
 
-function block(event) {
-  event.completed({
-    allowEvent: false,
-    errorMessage: ERROR_MESSAGE
-  });
-}
-
-function allow(event) {
-  event.completed({ allowEvent: true });
+function val(r) {
+  return r.status === Office.AsyncResultStatus.Succeeded && r.value ? r.value : "";
 }
 
 function validateAndComplete(event) {
   var item = Office.context.mailbox.item;
 
-  item.subject.getAsync(function (subjectResult) {
-    var subject =
-      subjectResult.status === Office.AsyncResultStatus.Succeeded && subjectResult.value
-        ? subjectResult.value
-        : "";
+  item.subject.getAsync(function (sr) {
+    var subject = val(sr);
 
-    if (JOB_NUMBER_REGEX.test(subject)) {
-      allow(event);
-      return;
-    }
+    item.body.getAsync(Office.CoercionType.Text, function (br) {
+      var body = val(br);
 
-    if (!ALSO_CHECK_BODY) {
-      block(event);
-      return;
-    }
+      var jobOk =
+        JOB_NUMBER_REGEX.test(subject) ||
+        (ALSO_CHECK_BODY && JOB_NUMBER_REGEX.test(body));
+      var purposeOk = !REQUIRE_PURPOSE || PURPOSE_REGEX.test(body);
 
-    item.body.getAsync(Office.CoercionType.Text, function (bodyResult) {
-      var body =
-        bodyResult.status === Office.AsyncResultStatus.Succeeded && bodyResult.value
-          ? bodyResult.value
-          : "";
-      if (JOB_NUMBER_REGEX.test(body)) {
-        allow(event);
-      } else {
-        block(event);
+      if (jobOk && purposeOk) {
+        event.completed({ allowEvent: true });
+        return;
       }
+
+      var msg = !jobOk && !purposeOk ? MSG_BOTH : !jobOk ? MSG_JOB : MSG_PURPOSE;
+      event.completed({ allowEvent: false, errorMessage: msg });
     });
   });
 }
 
-// Meetings sent to attendees fire OnMessageSend; personal appointments fire
-// OnAppointmentSend. Both run the same check.
 function onMessageSendHandler(event) {
   validateAndComplete(event);
 }
@@ -86,8 +77,6 @@ function onAppointmentSendHandler(event) {
   validateAndComplete(event);
 }
 
-// Required so new Outlook (Windows) and Outlook on the web can find the
-// handlers by name. Harmless on classic Outlook.
 if (typeof Office !== "undefined" && Office.actions && Office.actions.associate) {
   Office.actions.associate("onMessageSendHandler", onMessageSendHandler);
   Office.actions.associate("onAppointmentSendHandler", onAppointmentSendHandler);
